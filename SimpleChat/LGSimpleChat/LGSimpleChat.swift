@@ -14,18 +14,19 @@ https://tldrlegal.com/license/mozilla-public-license-2.0-(mpl-2)
 
 import UIKit
 import Foundation
+import IODProfanityFilter
 
 // MARK: Message
 
-class LGChatMessage : NSObject {
+public class LGChatMessage : NSObject {
     
-    enum SentBy : String {
+    public enum SentBy : String {
         case User = "LGChatMessageSentByUser"
         case Opponent = "LGChatMessageSentByOpponent"
     }
     
     // Useful to provide meta data for filtering predicate
-    var userInfo = [ String : AnyObject ]()
+    public var userInfo = [ String : AnyObject ]()
     
     // MARK: ObjC Compatibility
     
@@ -35,10 +36,10 @@ class LGChatMessage : NSObject {
     
     
     // Custom color for the speech bubble, if nil, will use default
-    var color : UIColor?
+    public var color : UIColor?
     
     // Set to any string to have a custom Gravatar used as the icon, same string will always have the same icon.
-    var gravatarString : String?
+    public var gravatarString : String?
     
     class func SentByUserString() -> String {
         return LGChatMessage.SentBy.User.rawValue
@@ -63,11 +64,11 @@ class LGChatMessage : NSObject {
     
     // MARK: Public Properties
     
-    var sentBy: SentBy
-    var content: String
-    var timeStamp: NSTimeInterval?
+    public var sentBy: SentBy
+    public var content: String
+    public var timeStamp: NSTimeInterval?
     
-    required init (content: String, sentBy: SentBy, timeStamp: NSTimeInterval? = nil){
+    required public init (content: String, sentBy: SentBy, timeStamp: NSTimeInterval? = nil){
         self.sentBy = sentBy
         self.timeStamp = timeStamp
         self.content = content
@@ -91,13 +92,13 @@ class LGChatMessage : NSObject {
         }
     }
     
-    override var hashValue: Int {
+    override public var hashValue: Int {
         get {
             return Int.addWithOverflow(Int.addWithOverflow(sentBy.hashValue, (timeStamp ?? 0).hashValue).0, content.hashValue).0
         }
     }
     
-    override func isEqual(object: AnyObject?) -> Bool {
+    override public func isEqual(object: AnyObject?) -> Bool {
         guard let object = object as? LGChatMessage else  {
             return false
         }
@@ -107,9 +108,11 @@ class LGChatMessage : NSObject {
 
 // MARK: Message Cell
 
-class LGChatMessageCell : UITableViewCell {
+public class LGChatMessageCell : UITableViewCell {
     
     var gravatarString : String?
+    
+    var profanityFilter : String?
     
     // MARK: Global MessageCell Appearance Modifier
     
@@ -203,7 +206,11 @@ class LGChatMessageCell : UITableViewCell {
     Use this in cellForRowAtIndexPath to setup the cell.
     */
     func setupWithMessage(message: LGChatMessage) -> CGSize {
-        textView.text = message.content
+        var content = message.content
+        if let profanityFilter = profanityFilter {
+            content = IODProfanityFilter.stringByFilteringString(content, withReplacementString: profanityFilter)
+        }
+        textView.text = content
         size = textView.sizeThatFits(maxSize)
         if size.height < minimumHeight {
             size.height = minimumHeight
@@ -244,27 +251,31 @@ class LGChatMessageCell : UITableViewCell {
 
 // MARK: Chat Controller
 
-@objc protocol LGChatControllerDelegate {
+@objc public protocol LGChatControllerDelegate {
     optional func shouldChatController(chatController: LGChatController, addMessage message: LGChatMessage) -> Bool
     optional func chatController(chatController: LGChatController, didAddNewMessage message: LGChatMessage)
 }
 
-class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataSource, LGChatInputDelegate {
+public class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataSource, LGChatInputDelegate {
     var gravatarCache = [ String : UIImage ]()
     var pendingGravatarLoad = [ String ]()
     
-    
-    // Set this value to filter messages
-    var filter : NSPredicate? {
+    // Set this to to a replacement string ex. "********" to filter profanity
+    public var profanityFilter : String? {
         didSet {
             tableView.reloadData()
         }
     }
     
-    typealias isOrderedBefore = (LGChatMessage, LGChatMessage) -> Bool
+    // Set this value to filter messages
+    public var filter : NSPredicate? {
+        didSet {
+            tableView.reloadData()
+        }
+    }
     
     // Set this value to apply sorting
-    var sort : isOrderedBefore? {
+    public var sort : ((LGChatMessage, LGChatMessage) -> Bool)? {
         didSet {
             if let sort = sort {
                 messages.sortInPlace(sort)
@@ -274,7 +285,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     }
     
     // Set to true to perform duplicate checking
-    var checkForDuplicates = false
+    public var checkForDuplicates = false
     
     // MARK: Constants
     
@@ -290,7 +301,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     */
     var messages: [LGChatMessage] = []
     var opponentImage: UIImage?
-    weak var delegate: LGChatControllerDelegate?
+    public weak var delegate: LGChatControllerDelegate?
     
     // MARK: Private Properties
     
@@ -302,22 +313,22 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     
     // MARK: Life Cycle
     
-    override func viewDidLoad() {
+    override public func viewDidLoad() {
         super.viewDidLoad()
         self.setup()
     }
     
-    override func viewWillAppear(animated: Bool) {
+    override public func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
         self.listenForKeyboardChanges()
     }
     
-    override func viewDidAppear(animated: Bool) {
+    override public func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
         self.scrollToBottom()
     }
     
-    override func viewWillDisappear(animated: Bool) {
+    override public func viewWillDisappear(animated: Bool) {
         super.viewWillDisappear(animated)
         self.unregisterKeyboardObservers()
     }
@@ -414,7 +425,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     }
     
     // MARK: Rotation
-    override func viewWillTransitionToSize(size: CGSize, withTransitionCoordinator coordinator: UIViewControllerTransitionCoordinator) {
+    override public func viewWillTransitionToSize(size: CGSize, withTransitionCoordinator coordinator: UIViewControllerTransitionCoordinator) {
         coordinator.animateAlongsideTransition({ (_) in
             self.tableView.reloadData()
         }) { (_) in
@@ -440,7 +451,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     
     // MARK: New messages
     
-    func addNewMessage(message: LGChatMessage) {
+    public func addNewMessage(message: LGChatMessage) {
         if checkForDuplicates {
             if messages.contains(message) {
                 return // Dupe
@@ -479,7 +490,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     
     // MARK: UITableViewDelegate
     
-    func tableView(tableView: UITableView, heightForRowAtIndexPath indexPath: NSIndexPath) -> CGFloat {
+    public func tableView(tableView: UITableView, heightForRowAtIndexPath indexPath: NSIndexPath) -> CGFloat {
         let message = messages[indexPath.row]
         
         if let filter = filter {
@@ -494,7 +505,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
         return height
     }
     
-    func scrollViewDidScroll(scrollView: UIScrollView) {
+    public func scrollViewDidScroll(scrollView: UIScrollView) {
         if scrollView.dragging {
             self.chatInput.textView.resignFirstResponder()
         }
@@ -502,15 +513,15 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
     
     // MARK: UITableViewDataSource
     
-    func numberOfSectionsInTableView(tableView: UITableView) -> Int {
+    public func numberOfSectionsInTableView(tableView: UITableView) -> Int {
         return 1;
     }
     
-    func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    public func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return self.messages.count;
     }
     
-    func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
+    public func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier("identifier", forIndexPath: indexPath) as! LGChatMessageCell
         let message = self.messages[indexPath.row]
         cell.hidden = false
@@ -519,6 +530,7 @@ class LGChatController : UIViewController, UITableViewDelegate, UITableViewDataS
                 cell.hidden = true
             }
         }
+        cell.profanityFilter = profanityFilter
         cell.gravatarString = message.gravatarString
         cell.opponentImageView.image = message.sentBy == .Opponent ? self.opponentImage : nil
         if let gravatarString = cell.gravatarString {
