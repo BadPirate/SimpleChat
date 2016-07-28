@@ -15,6 +15,7 @@ https://tldrlegal.com/license/mozilla-public-license-2.0-(mpl-2)
 import UIKit
 import Foundation
 import IODProfanityFilter
+import MD5
 
 // MARK: Message
 
@@ -533,14 +534,15 @@ public class LGChatController : UIViewController, UITableViewDelegate, UITableVi
         cell.profanityFilter = profanityFilter
         cell.gravatarString = message.gravatarString
         cell.opponentImageView.image = message.sentBy == .Opponent ? self.opponentImage : nil
-        if let gravatarString = cell.gravatarString {
+        if let gravatarString = cell.gravatarString, gravatarData = gravatarString.dataUsingEncoding(NSUTF8StringEncoding) {
             if let gravatar = gravatarCache[gravatarString] {
                 cell.opponentImageView.image = gravatar
             }
             else {
                 if !pendingGravatarLoad.contains(gravatarString) {
                     pendingGravatarLoad.append(gravatarString)
-                    let gravatarURL = NSURL(string: "https://www.gravatar.com/avatar/\(gravatarString.hash).png?d=retro&size=150")!
+                    let gravatarHash = gravatarData.md5Hash()
+                    let gravatarURL = NSURL(string: "https://www.gravatar.com/avatar/\(gravatarHash).png?d=retro&size=150")!
                     let task = NSURLSession.sharedSession().dataTaskWithURL(gravatarURL, completionHandler: { (data, response, error) in
                         dispatch_async(dispatch_get_main_queue(), {
                             self.pendingGravatarLoad.removeObject(gravatarString)

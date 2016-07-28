@@ -132,5 +132,5 @@ An easy to use bubble chat UI as an alternative to the traditional iOS talk bubb
 
   # s.xcconfig = { "HEADER_SEARCH_PATHS" => "$(SDKROOT)/usr/include/libxml2" }
   s.dependency "IODProfanityFilter", "~> 1.0.0"
-
+  s.dependency 'MD5', '~> 0.1.1'
 end
