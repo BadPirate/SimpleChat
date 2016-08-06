@@ -42,6 +42,9 @@ public class LGChatMessage : NSObject {
     // Set to any string to have a custom Gravatar used as the icon, same string will always have the same icon.
     public var gravatarString : String?
     
+    // If you only have the gravatar hash value, set this instead
+    public var gravatarHash : String?
+    
     class func SentByUserString() -> String {
         return LGChatMessage.SentBy.User.rawValue
     }
@@ -111,7 +114,7 @@ public class LGChatMessage : NSObject {
 
 public class LGChatMessageCell : UITableViewCell {
     
-    var gravatarString : String?
+    var gravatarHash : String?
     
     var profanityFilter : String?
     
@@ -300,14 +303,14 @@ public class LGChatController : UIViewController, UITableViewDelegate, UITableVi
     /*!
     Use this to set the messages to be displayed
     */
-    var messages: [LGChatMessage] = []
+    public var messages: [LGChatMessage] = []
     var opponentImage: UIImage?
     public weak var delegate: LGChatControllerDelegate?
     
     // MARK: Private Properties
     
     private let sizingCell = LGChatMessageCell()
-    private let tableView: UITableView = UITableView()
+    public let tableView: UITableView = UITableView()
     private let chatInput = LGChatInput(frame: CGRectZero)
     private var bottomChatInputConstraint: NSLayoutConstraint!
     
@@ -532,47 +535,61 @@ public class LGChatController : UIViewController, UITableViewDelegate, UITableVi
             }
         }
         cell.profanityFilter = profanityFilter
-        cell.gravatarString = message.gravatarString
+        cell.gravatarHash = message.gravatarHash ?? message.gravatarString?.md5Hash()
         cell.opponentImageView.image = message.sentBy == .Opponent ? self.opponentImage : nil
-        if let gravatarString = cell.gravatarString, gravatarData = gravatarString.dataUsingEncoding(NSUTF8StringEncoding) {
-            if let gravatar = gravatarCache[gravatarString] {
+        if let gravatarHash = cell.gravatarHash {
+            if let gravatar = gravatarCache[gravatarHash] {
                 cell.opponentImageView.image = gravatar
             }
             else {
-                if !pendingGravatarLoad.contains(gravatarString) {
-                    pendingGravatarLoad.append(gravatarString)
-                    let gravatarHash = gravatarData.md5Hash()
-                    let gravatarURL = NSURL(string: "https://www.gravatar.com/avatar/\(gravatarHash).png?d=retro&size=150")!
-                    let task = NSURLSession.sharedSession().dataTaskWithURL(gravatarURL, completionHandler: { (data, response, error) in
-                        dispatch_async(dispatch_get_main_queue(), {
-                            self.pendingGravatarLoad.removeObject(gravatarString)
-                            if let data = data, gravatar = UIImage(data: data) {
-                                self.gravatarCache[gravatarString] = gravatar
-                                if let paths = tableView.indexPathsForVisibleRows {
-                                    var reloadPaths = [NSIndexPath]()
-                                    for path in paths {
-                                        if let cell = tableView.cellForRowAtIndexPath(path) as? LGChatMessageCell {
-                                            if cell.gravatarString == gravatarString {
-                                                cell.opponentImageView.image = gravatar
-                                                reloadPaths.append(path)
-                                            }
-                                        }
-                                    }
-                                    if reloadPaths.count > 0 {
-                                        tableView.reloadRowsAtIndexPaths(reloadPaths, withRowAnimation: .Automatic)
+                if !pendingGravatarLoad.contains(gravatarHash) {
+                    pendingGravatarLoad.append(gravatarHash)
+                    gravatarFromHash(gravatarHash, defaultType: "retro", size: 150, completion: { (image, error) in
+                        self.pendingGravatarLoad.removeObject(gravatarHash)
+                        guard let image = image else { return }
+                        self.gravatarCache[gravatarHash] = image
+                        if let paths = tableView.indexPathsForVisibleRows {
+                            var reloadPaths = [NSIndexPath]()
+                            for path in paths {
+                                if let cell = tableView.cellForRowAtIndexPath(path) as? LGChatMessageCell {
+                                    if cell.gravatarHash == gravatarHash {
+                                        cell.opponentImageView.image = image
+                                        reloadPaths.append(path)
                                     }
                                 }
                             }
-                        })
+                            if reloadPaths.count > 0 {
+                                tableView.reloadRowsAtIndexPaths(reloadPaths, withRowAnimation: .Automatic)
+                            }
+                        }
                     })
-                    task.resume()
                 }
             }
         }
         cell.setupWithMessage(message)
         return cell;
     }
-    
+}
+
+public func gravatarFromString(gravatarString : String, defaultType : String, size : Int, completion : (UIImage?, NSError?) -> ())
+{
+    let gravatarHash = gravatarString.md5Hash()
+    gravatarFromHash(gravatarHash, defaultType: defaultType, size: size, completion: completion)
+}
+
+public func gravatarFromHash(gravatarHash : String, defaultType : String, size : Int, completion : (UIImage?, NSError?) -> ())
+{
+    let gravatarURL = NSURL(string: "https://www.gravatar.com/avatar/\(gravatarHash).png?d=\(defaultType)&size=\(size)")!
+    let task = NSURLSession.sharedSession().dataTaskWithURL(gravatarURL, completionHandler: { (data, response, error) in
+        var image : UIImage? = nil
+        if let data = data {
+            image = UIImage(data: data)
+        }
+        dispatch_async(dispatch_get_main_queue(), {
+            completion(image,error)
+        })
+    })
+    task.resume()
 }
 
 extension Array {
